@@ -1,22 +1,15 @@
-// Import required modules
 const express = require("express");
 const bodyParser = require("body-parser");
-// const swaggerJsdoc = require("swagger-jsdoc");
-// const swaggerUi = require("swagger-ui-express");
+const cors = require("cors");
 const sql = require("msnodesqlv8");
 
 const app = express();
 
 // Define connection string
 const connectionString =
-  "server=MXOLISIS\\SQLEXPRESS01;Database=UmsiziDB;Integrated Security=sspi;Connection Timeout=30;Driver={SQL SERVER}";
+  "Driver={SQL Server};Server=tcp:ukukhulaserver.database.windows.net,1433;Database=UmsiziDB;Uid=bbdadmin;Pwd=password@1234;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;";
 
-// sql
-//   .connect(connectionString)
-//   .then(() => console.log("Database connection successful"))
-//   .catch((err) => console.error("Database connection failed:", err));
-
-// getUsers();
+app.use(cors());
 async function getUsers() {
   return new Promise((resolve, reject) => {
     const query = "SELECT * FROM [dbo].[User]";
@@ -30,9 +23,37 @@ async function getUsers() {
     });
   });
 }
+async function newTasksForUser(
+  id,
+  title,
+  description,
+  deadline,
+  priority,
+  stage
+) {
+  new Promise((resolve, reject) => {
+    const deadlineISO = deadline.split("T")[0];
+    const query =
+      "INSERT INTO [dbo].[Tasks]([id],[title],[description],[deadline],[priority],[stage]) VALUES (?,?,?,?,?,?)";
+    sql.query(
+      connectionString,
+      query,
+      [id, title, description, deadlineISO, priority, stage],
+      (err, rows) => {
+        if (err) {
+          console.error("Error executing query:", err);
+          reject(err);
+        } else {
+          resolve(rows);
+        }
+      }
+    );
+  });
+  return;
+}
 async function getTasksForUser(userID) {
   return new Promise((resolve, reject) => {
-    const query = "SELECT * FROM [dbo].[Tasks] WHERE UserID = ?";
+    const query = "SELECT * FROM [dbo].[Tasks] WHERE id = ?";
     sql.query(connectionString, query, [userID], (err, rows) => {
       if (err) {
         console.error("Error executing query:", err);
@@ -43,23 +64,7 @@ async function getTasksForUser(userID) {
     });
   });
 }
-// const swaggerOptions = {
-//   swaggerDefinition: require("./swagger.yaml"),
-//   apis: ["./routes/*.yaml"],
-//   definition: {
-//     openapi: "3.0.0",
-//     info: {
-//       title: "My API",
-//       version: "1.0.0",
-//       description: "API documentation using Swagger",
-//     },
-//   },
-//   apis: ["./routes/*.js"],
-// };
 
-// const swaggerDocs = swaggerJsdoc(swaggerOptions);
-
-// app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use(bodyParser.json());
 
 async function createUser(name, email) {
@@ -76,18 +81,6 @@ async function createUser(name, email) {
   });
 }
 
-/**
- * @swagger
- * /getUsers:
- *   get:
- *     summary: Retrieve all users
- *     description: Retrieve a list of all users from the database
- *     responses:
- *       '200':
- *         description: A JSON array of user objects
- *       '500':
- *         description: Internal server error
- */
 app.get("/getUsers", async (req, res) => {
   try {
     const results = await getUsers();
@@ -100,7 +93,7 @@ app.get("/getUsers", async (req, res) => {
 
 app.get("/getTasksForUser/:userID", async (req, res) => {
   try {
-    const userID = req.params.userID; 
+    const userID = req.params.userID;
     const results = await getTasksForUser(userID);
     res.status(200).send(results);
   } catch (error) {
@@ -108,29 +101,7 @@ app.get("/getTasksForUser/:userID", async (req, res) => {
     res.status(500).send("Error getting tasks for user");
   }
 });
-/**
- * @swagger
- * /Newuser:
- *   post:
- *     summary: Create a new user
- *     description: Create a new user with the provided name and email
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               email:
- *                 type: string
- *     responses:
- *       '201':
- *         description: User created successfully
- *       '500':
- *         description: Error creating user
- */
+
 app.post("/Newuser", async (req, res) => {
   const { name, email } = req.body;
   try {
@@ -140,8 +111,16 @@ app.post("/Newuser", async (req, res) => {
     res.status(500).send("Error creating user");
   }
 });
+app.post("/NewTask", async (req, res) => {
+  const { id, title, description, deadline, priority, stage } = req.body;
+  try {
+    await newTasksForUser(id, title, description, deadline, priority, stage);
+    res.status(201).send({ message: "task created successfully" });
+  } catch (err) {
+    res.status(500).send({ message: "Error creating user" });
+  }
+});
 
-// Start the server
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
